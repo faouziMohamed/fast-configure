@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-function helper() {
+cd "$(${BASH_SOURCE[0]})"|exit 1
+
+function helper_() {
   cat << EOF
 This is a helper script to install automatically
 some software that i install every time i install
@@ -49,18 +51,35 @@ function brave_browser_() {
 }
 
 function libs_() {
+  local LIBS_
   LIBS_=(build-essential qtbase5-dev openjdk-11-jdk libglu1-mesa-dev)
   sudo apt-get install --yes "${LIBS_[@]}"
 }
 
 function services_() {
+  # Requirement for git : latest stable version
   sudo add-apt-repository --yes ppa:git-core/ppa
   SERVICES_=(git wget openssh openssh-server openssh-client)
   sudo apt-get install --yes "${SERVICES_[@]}"
 }
 
 function utilities_() {
-  sudo apt-get install nautilus
+  local APT_UTILITIES_
+  local SNAP_UTILITIES
+
+  # Requirement for cherrytree
+  sudo add-apt-repository ppa:giuspen/ppa --yes
+  #Requirement for unetbooting
+  sudo add-apt-repository ppa:gezakovacs/ppa --yes 
+  sudo apt-get update
+
+  APT_UTILITIES_=(nautilus rsync htop tree xz-utils unzip unrar gnome-terminal \
+    tmux gnome-tweaks gnome-tweak-tool chrome-gnome-shell scrot peek cherrytree\
+    inkscape imagemagick shotwell gthumb gwenview evince unetbootin \
+    gnome-disk-utility gparted)
+
+  SNAP_UTILITIES=(cmake)
+  sudo apt-get install "${APT_UTILITIES_[@]}"
 }
 
 function docker_() {
@@ -86,6 +105,7 @@ function docker_() {
 }
 
 function install_jetbrains_ide() {
+  local _ide_
   _ide_=(clion pycharm-professional datagrip intellij-idea-ultimate)
   for jetbrains_ide in "${_ide_[@]}"; do
     echo "Installing ${jetbrains_ide}..."
@@ -93,14 +113,28 @@ function install_jetbrains_ide() {
   done
 }
 
-function install_GOgh_terminal_profiles() {
-  # dependencies
-  sudo apt-get install dconf-cli uuid-runtime
 
-  bash -c "$(wget -qO- https://git.io/vQgMr)"
+function install_xdm_downloader_(){
+  # install ectractor sudo apt install xz-utils see utilities_ function
+  tar --extract --file --verbose xdm-setup-7.2.11.tar.xz
+  chmod +x install.sh 
+  if [ -f install.sh ] then sudo ./install.sh; fi
 }
 
-helper
+function apply_dot_files_(){
+  git clone https://githubcom/faouzimohamed/dot-files
+  cd dot-files
+  bash -c "source bootstrap.sh -f"
+  git config --global commit.gpgSign false
+}
+
+function some_wget_install(){
+  wget https://www.yworks.com/resources/yed/demo/yEd-3.20.1_with-JRE14_64-bit_setup.sh
+  chmod +x yEd-3.20.1_with-JRE14_64-bit_setup.sh
+  ./yEd-3.20.1_with-JRE14_64-bit_setup.sh
+}
+
+helper_
 libs_
 sublime_text_
 typora_
@@ -108,3 +142,5 @@ services_
 utilities_
 docker_
 install_jetbrains_ide
+install_xdm_downloader_
+apply_dot_files_
