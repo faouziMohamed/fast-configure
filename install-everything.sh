@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-cd "$(dirname "${BASH_SOURCE[0]}")" || exit
+cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 
 function helper_() {
   cat << EOF
@@ -12,7 +12,15 @@ EOF
 
 function now_installing() {
   [[ $# == 0 ]] && return 0
-  echo -e "Installing \033[36m${*}\033[0m..."
+  local args
+  local RESET
+  local CYAN
+  RESET="$(printf "\033[0m")"
+  CYAN="$(printf "\033[36m")"
+  args="${*}"
+  # Replace space with ', ' and setting the default color for the ','
+  args="${args// /${RESET},${CYAN} }"
+  echo -e "Installing ${CYAN}${args}${RESET}..."
 }
 
 function install_libs_() {
@@ -22,10 +30,10 @@ function install_libs_() {
 }
 
 function install_services_() {
-  # Requirement for git : latest stable version
   local SERVICES_=(git wget openssh openssh-server openssh-client)
   now_installing "${SERVICES_[@]}"
 
+  # Requirement for git : latest stable version
   sudo add-apt-repository --yes ppa:git-core/ppa
   sudo apt-get install --yes "${SERVICES_[@]}"
 }
@@ -33,19 +41,20 @@ function install_services_() {
 # For debian based distro
 function install_utilities_() {
   # ---------APT
-  local APT_UTILITIES_=(nautilus rsync htop tree xz-utils unzip unrar tmux kazam
-    gnome-terminal gnome-tweaks gnome-tweak-tool chrome-gnome-shell scrot peek
-    cherrytree inkscape imagemagick shotwell gthumb gwenview evince unetbootin
-    gnome-disk-utility gparted)
-  now_installing "${APT_UTILITIES_[@]}"
+  local APT_UTILITIES=(nautilus rsync htop tree xz-utils unzip unrar tmux
+    gnome-terminal gnome-tweaks gnome-tweak-tool chrome-gnome-shell scrot
+    cherrytree evince unetbootin gnome-disk-utility gparted)
 
+  local GRAPHICS=(kazam peek inkscape imagemagick shotwell gthumb gwenview
+    vokoscreen-ng kolourpaint4)
+  now_installing "${APT_UTILITIES[@]}" "${GRAPHICS[@]}"
   # Requirement for cherrytree
   sudo add-apt-repository ppa:giuspen/ppa --yes
   #Requirement for unetbooting
   sudo add-apt-repository ppa:gezakovacs/ppa --yes
   sudo apt-get update
 
-  sudo apt-get install "${APT_UTILITIES_[@]}"
+  sudo apt-get install "${APT_UTILITIES[@]}" "${GRAPHICS[@]}"
 
   # ----------SNAP
   local SNAP_UTILITIES=(cmake code)
@@ -130,6 +139,9 @@ function some_wget_install() {
   tar --extract --verbose --file "${XDM_XZ}"
   chmod +x install.sh
   sudo ./install.sh &
+
+  # ----------- KITE
+  bash -c "$(wget -q -O - https://linux.kite.com/dls/linux/current)"
 }
 
 function install_browser_() {
