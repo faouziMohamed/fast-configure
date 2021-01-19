@@ -4,4 +4,4 @@ install.sh
 readme.txt
 yEd*
 xdm*
-dot-files/**
+dot-files
