@@ -1,13 +1,28 @@
 #!/usr/bin/env bash
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
-
+if [[ $(id -u) -eq 0 ]]; then
+  BOLD="\033[1m"
+  RESET="\033[0m"
+  echo -e "\n${BOLD}$(basename "${0}")${RESET}: Is not intended to be run with root privileges." >&2
+  echo -e "Aborting...\n" >&2
+  unset BOLD RESET
+  exit 1
+fi
 function helper_() {
   cat << EOF
-This is a helper script to install automatically
-some software that i install every time i install
-a new linux distro (Ubuntu && Kubuntu)
+  This repo contains a script that install almost
+  everything i need in a fresh install of some linux
+  distros (Debian based and centos8 Linux).
+
+  Next you'll be asked to enter your sudo password (multiple times).
+  Please take a look to this script before using it, you may want
+  to remove some installs...!
+
 EOF
+  trap 'echo -e "\n\nAborting..."; exit 0; ' INT
+  # shellcheck disable=SC2034
+  read -rp "Hit ENTER to continue or CTRL+C to abort : " dummy
 }
 
 function now_installing() {
@@ -20,7 +35,7 @@ function now_installing() {
   args="${*}"
   # Replace space with ', ' and setting the default color for the ','
   args="${args// /${RESET},${CYAN} }"
-  echo -e "Installing ${CYAN}${args}${RESET}..."
+  echo -e "\nInstalling ${CYAN}${args}${RESET}..."
 }
 
 function install_libs_() {
@@ -30,7 +45,7 @@ function install_libs_() {
 }
 
 function install_services_() {
-  local SERVICES_=(git wget openssh openssh-server openssh-client)
+  local SERVICES_=(git wget openssh-server openssh-client)
   now_installing "${SERVICES_[@]}"
 
   # Requirement for git : latest stable version
@@ -54,7 +69,7 @@ function install_utilities_() {
   sudo add-apt-repository ppa:gezakovacs/ppa --yes
   sudo apt-get update
 
-  sudo apt-get install "${APT_UTILITIES[@]}" "${GRAPHICS[@]}"
+  sudo apt-get install --yes "${APT_UTILITIES[@]}" "${GRAPHICS[@]}"
 
   # ----------SNAP
   local SNAP_UTILITIES=(cmake code)
@@ -127,7 +142,7 @@ function some_wget_install() {
   chmod +x ${YED_SCRIPT}
   ./${YED_SCRIPT} &
 
-  now_installing "Anaconda3 2020.11 x86_64"
+  now_installing "Anaconda3-2020.11-x86_64"
   rm -f "${ANACONDA_SCRIPT}"
   wget "https://repo.anaconda.com/archive/${ANACONDA_SCRIPT}"
   chmod +x "${ANACONDA_SCRIPT}"
@@ -166,7 +181,7 @@ function apply_dot_files_() {
 }
 
 function main() {
-  local DOWNLOAD_DIR='download'
+  local DOWNLOAD_DIR='/tmp/fast-config-download'
   mkdir -p "${DOWNLOAD_DIR}"
   cd "${DOWNLOAD_DIR}" || true
 
@@ -179,7 +194,14 @@ function main() {
   install_editors
   some_wget_install
   install_browser_
+
+  # Removing unneeded packages
+  sudo apt update
+  sudo apt autoclean --yes
+  sudo apt --yes autoremove
+
   apply_dot_files_
+
 }
 
 main
