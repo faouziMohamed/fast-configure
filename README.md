@@ -4,7 +4,7 @@ This repo contains a script that install almost everything i need in a fresh ins
 <img src="images/Screenshot_1.png" alt="">
 
 
-## How use the script ?
+## How to use the script ?
 - The git way
 ```bash
 git clone https://github.com/faouziMohamed/fast-configure.git
