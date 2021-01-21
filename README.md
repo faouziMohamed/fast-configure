@@ -15,7 +15,7 @@ cd fast-configure && chmod +x install-everything.sh
 - Git free  
 Just open a terminal then run
 ```bash
-bash -c "$(wget -qO- https://del.dog/thuthax)
+bash -c "$(wget -qO- https://del.dog/thuthax)"
 ```
 
 *`https://del.dog/thuthax` url is a shortned url for `https://raw.githubusercontent.com/faouziMohamed/fast-configure/main/install-everything.sh`*
