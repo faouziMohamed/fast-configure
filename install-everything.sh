@@ -160,13 +160,13 @@ function some_wget_install() {
 }
 
 function install_browser_() {
-    //TODO: add download for firefox developer edition and firefox nighly
-    // Link to latest : 
-    // - nighly : https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=linux64&lang=en-US 
-    // - Dev Edition : https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US
+    # TODO: add download for firefox developer edition and firefox nighly
+    # Link to latest : 
+    # - nighly : https://download.mozilla.org/?product=firefox-nightly-latest-ssl&os=linux64&lang=en-US 
+    # - Dev Edition : https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US
 
-    //TODO: Copy firefox profile(s) data into the `.mozilla` directory
-    // Profiles dowloaded from the server 
+    # TODO: Copy firefox profile(s) data into the `.mozilla` directory
+    # Profiles dowloaded from the server 
 
 
   now_installing "Brave-browser Chromium browser"
