@@ -191,12 +191,10 @@ function install_docker() {
 }
 
 function graphics_install() {
-  if [[ ${EXCLUDE_GRAPHICS} == 0 ]]; then
-    local GRAPHICS=(kazam peek inkscape imagemagick shotwell gthumb gwenview
-      vokoscreen-ng kolourpaint4)
-    now_installing "${GRAPHICS[@]}"
-    sudo apt-get install --yes "${GRAPHICS[@]}"
-  fi
+  local GRAPHICS=(kazam peek inkscape imagemagick shotwell gthumb gwenview
+        vokoscreen-ng kolourpaint4)
+  now_installing "${GRAPHICS[@]}"
+  sudo apt-get install --yes "${GRAPHICS[@]}"
 }
 
 function gui_utilities_install() {
