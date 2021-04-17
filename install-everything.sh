@@ -1,29 +1,160 @@
 #!/usr/bin/env bash
 
+IS_IN_DOCKER_CONTAINER=0
+MINIMAL_INSTALL=0
+VERBOSE=1
+EXCLUDE_BROWSERS=0
+EXCLUDE_GRAPHICS=0
+EXCLUDE_CONDA=0
+EXCLUDE_DOCKER=0
+EXCLUDE_UNEXPECTED_ARGS=()
+EXCLUDE_NO_ARGS=0
+FORCE=0
+
+BOLD='\033[1m'
+RESET='\033[0m'
+
+# Get user arguments
+function get_script_arguments() {
+  local SCRIPT_NAME=''
+  local HAS_EXCLUDE=0
+  SCRIPT_NAME="$(basename "${0}")"
+
+  while [ "${1}" ]; do
+    case "${1}" in
+    -d | --docker)
+      IS_IN_DOCKER_CONTAINER=1
+      MINIMAL_INSTALL=1
+      ;;
+    -f | --force) FORCE=1 ;;
+    -m | --minimal) MINIMAL_INSTALL=1 ;;
+    -q | --quiet) VERBOSE=0 ;;
+    -e | --exclude)
+      shift
+      EXCLUDE_NO_ARGS=1
+      HAS_EXCLUDE=1
+      while [ "${1}" ]; do
+        case "${1}" in
+        br | browsers) EXCLUDE_BROWSERS=1 ;;
+        cd | conda | anacnda)
+          EXCLUDE_CONDA=1
+          ;;
+        dc | docker) EXCLUDE_DOCKER=1 ;;
+        df | dot-files) EXCLUDE_DOT_FILES=1 ;;
+        gr | graphics) EXCLUDE_GRAPHICS=1 ;;
+        -*)
+          if [[ "${EXCLUDE_BROWSERS}" == 1 || \
+            "${EXCLUDE_CONDA}" == 1 || \
+            "${EXCLUDE_DOCKER}" == 1 || \
+            "${EXCLUDE_DOT_FILES}" == 1 || \
+            "${EXCLUDE_GRAPHICS}" == 1 ]]; then
+            EXCLUDE_NO_ARGS=0
+          fi
+          break
+          ;;
+        *) EXCLUDE_UNEXPECTED_ARGS+=("${1}") ;;
+        esac
+        shift
+      done
+      ;;
+    -h | --help)
+      cat <<-EOF
+      Fast Configure
+      USAGE: 
+        ${SCRIPT_NAME} [OPTIONS] 
+        ${SCRIPT_NAME} [-e|--exclude ARGUMENTS] 
+      Install some handy software that need to be installed in a fresh install of 
+      some linux distros (Debian based and Ubuntu).
+      
+      OPTIONS:
+        -m --minimal    Install only minimal non graphical packages and library 
+                        that depends on and some useful utilities
+        -d  --docker    Since in a docker container the user is root by default,
+                        this remove warnings related to root user. When specified 
+                        this behave like the --minimal flag
+        -f  --force     Select default (recommended) answer when a interraction 
+                        from the user is required
+        -q  --quiet     Suppress Unnesessary output
+        -e  --exclude   Tell the script to exclude some package. When the exclude 
+                        flag is provided, it require at last one of these arguments
+          br | browsers         Do not install browsers
+          cd | conda | anaconda Exclude installation of the conda environnement 
+                                either Miniconda or Anaconda
+          dc | docker           exlude installation of docker
+          df | dot-files        Do not apply custom dot-files
+          gr | graphics         Do not install graphics software (GIMP, Yed,...)
+        -h --help       Display this help and exit
+      EOF
+      exit 0
+      ;;
+    *)
+      cat <<-EOF
+       ${SCRIPT_NAME}: invalid option -- '${1}'
+       Try '${SCRIPT_NAME} --help' for more information.
+      EOF
+      exit 1
+      ;;
+    esac
+
+    # Pass to the next script's argument when the exclude flag is set and have arguments
+    # If the --exlude flag is set but no arguments were provided : do not shift
+    case "${HAS_EXCLUDE}" in
+    0) shift ;;
+    1) # Keep the last argument
+      if [[ "${EXCLUDE_NO_ARGS}" == 0 ]]; then
+        HAS_EXCLUDE=0
+        shift
+      fi ;;
+    esac
+
+  done
+}
+
 function unsupported_env_message_and_exit() {
   print_error_output "${1} is an unsupported environment!\n"
   print_error_output "Aborting!\n"
   exit 1
 }
 
+function get_distribution() {
+  # perform some very rudimentary platform detection
+  local DISTRIBUTION=""
+  # Every system that we officially support has /etc/os-release
+  if [ -r /etc/os-release ]; then
+    # shellcheck source=/dev/null
+    DISTRIBUTION="$(. /etc/os-release && echo "$ID")"
+    DISTRIBUTION="$(echo "${DISTRIBUTION}" | tr '[:upper:]' '[:lower:]')"
+  fi
+  # Returning an empty string here should be alright since the
+  # case statements don't act unless you provide an actual value
+  echo "$DISTRIBUTION"
+}
+
+function get_system_based() {
+  local SYSTEM_BASED=""
+  if [[ -r /etc/os-release ]]; then
+    # shellcheck source=/dev/null
+    SYSTEM_BASED="$(. /etc/os-release && echo "$ID_LIKE")"
+    SYSTEM_BASED="$(echo "${SYSTEM_BASED}" | tr '[:upper:]' '[:lower:]')"
+    # SYSTEM_BASED="$(grep ^ID_LIKE= /etc/*release | cut -f2 -d=)"
+  fi
+  echo "${SYSTEM_BASED}"
+}
+
 function process_auto_check() {
-  # Probably running in a docker container
-  if (grep docker /proc/1/cgroup -q); then
-    IS_IN_DOCKER_CONTAINER=1
+  local SYSTEM_BASED=""
+  SYSTEM_BASED="$(get_system_based)"
+  if [[ "$(uname)" != "Linux" ]]; then
+    unsupported_env_message_and_exit "$(uname)"
+  elif [[ "${SYSTEM_BASED}" != "debian" ]]; then
+    unsupported_env_message_and_exit "${SYSTEM_BASED}"
   fi
 
-  # Probably running in android termux
-  # shellcheck disable=SC2009
-  if [[ "${OSTYPE}" == "linux-androideabi" && "$(ps a | grep --count com.termux)" -gt 1 ]]; then
+  # Probably running in a docker container, we perform this check
+  # to remove later some install
+  if (grep docker /proc/1/cgroup -q); then
+    IS_IN_DOCKER_CONTAINER=1
     MINIMAL_INSTALL=1
-  else
-    local SYSTEM_BASED
-    SYSTEM_BASED="$(grep ^ID_LIKE= /etc/*release | cut -f2 -d=)"
-    if [[ "$(uname)" != "Linux" ]]; then
-      unsupported_env_message_and_exit "$(uname)"
-    elif [[ "${SYSTEM_BASED}" != "debian" ]]; then
-      unsupported_env_message_and_exit "${SYSTEM_BASED}"
-    fi
   fi
 }
 
@@ -35,7 +166,6 @@ function check_privileges() {
       printf "\n${BOLD}%s${RESET}: " "$(basename "${0}")"
       printf "Is not intended to be run with root privileges.\n"
       printf "Aborting...\n\n"
-      unset BOLD RESET
       exit 1
     fi
   fi
@@ -48,44 +178,52 @@ function ask_yes_no() {
 
   while [[ "${RE_ASK}" == 1 ]]; do
     RE_ASK=0
-    echo -e "${MESSAGE} (Y/N) - [Y]: "
+    echo -en "${MESSAGE} (Y/N) - [Y]: "
     read -r yn
     case "${yn}" in
-      [yY] | Yes | yes | YES | yEs | yeS | YEs | yES | YeS) return 0 ;;
-      [nN] | no | NO | No | nO)
-        printf "%s\n" "${MESSAGE_FAIL}"
-        return 1
-        ;;
-      *) RE_ASK=1 ;;
+    [yY] | Yes | yes | YES | yEs | yeS | YEs | yES | YeS) return 0 ;;
+    [nN] | no | NO | No | nO)
+      printf "%s" "${MESSAGE_FAIL}"
+      return 1
+      ;;
+    *) RE_ASK=1 ;;
     esac
   done
 }
 
 function print_error_output() {
-  printf "%s" "${1}" > /dev/stderr
+  echo -en "${1}" >/dev/stderr
 }
 
 function exclude_error_handler() {
   if [[ "${VERBOSE}" == 1 ]]; then
-    print_error_output -- "----------------------------------------------------------------------------\n"
-    print_error_output " ${BOLD}'br'${RESET} or ${BOLD}'browsers'${RESET}  : exclude browsers\n"
-    print_error_output " ${BOLD}'gr'${RESET} or ${BOLD}'graphics'${RESET}  : exclude graphics software\n"
-    print_error_output " ${BOLD}'df'${RESET} or ${BOLD}'dot-files'${RESET} : exclude dot-files\n"
-    print_error_output -- "----------------------------------------------------------------------------\n"
+    print_error_output "----------------------------------------------------------------------------\n"
+    print_error_output " ${BOLD}'br'${RESET}|${BOLD}'browsers'${RESET}  : exclude browsers\n"
+    print_error_output " ${BOLD}'cd'${RESET}|${BOLD}'conda'${RESET}     : exclude anaconda\n"
+    print_error_output " ${BOLD}'dc'${RESET}|${BOLD}'docker'${RESET}    : exclude docker installation\n"
+    print_error_output " ${BOLD}'df'${RESET}|${BOLD}'dot-files'${RESET} : exclude dot-files\n"
+    print_error_output " ${BOLD}'gr'${RESET}|${BOLD}'graphics'${RESET}  : exclude graphics software\n"
+    print_error_output "----------------------------------------------------------------------------\n"
   fi
   echo
   sleep 0.8
 
   if [[ "${FORCE}" == 0 ]]; then
     if ask_yes_no "Continue without the exclude flag ?"; then
-      printf 'Skipping exclude!'
+      cat <<-'EOF'
+
+      Skipping exclude!
+      -----------------
+
+      EOF
+      EXCLUDE_NO_ARGS=0
       return 0
     else
-      printf "Aborting!\n"
+      printf "\nAborting!\n"
       exit 1
     fi
   else
-    print_error_output 'Skipping exclude!\n'
+    print_error_output '\nSkipping exclude!\n'
     return 0
   fi
   sleep 1
@@ -100,26 +238,29 @@ function exclude_unexpected_args() {
   exclude_error_handler
 }
 
-function exclude_no_args() {
-  print_error_output "The '--exclude' flag expect is set but no arguments were provided"
-  print_error_output "'--exclude' can be used with the following arguments\n"
-  print_error_output "br | browsers | gr | graphics | df | dot-files, but got ${BOLD}«${UNEXPECTED}»"
-  print_error_output "${RESET}\n"
+function exclude_no_args_provided() {
+  print_error_output "The '--exclude' flag expect is set but no arguments were provided.\n"
+  print_error_output "The '--exclude' can be used with the following arguments:\n"
+  print_error_output "\nbr | browsers | gr | graphics | df | dot-files\n"
+  if [[ -z "${1}" ]]; then
+    print_error_output ", but got ${BOLD}«${UNEXPECTED}»${RESET}\n"
+  fi
   exclude_error_handler
 }
 
-
 function helper() {
-  cat << EOF
-  This repo contains a script that install almost
-  everything i need in a fresh install of some linux
-  distros (Debian based and Ubuntu).
+  # The indents in the next content are TABS not spaces,
+  # though, do not replace them with spaces, it will throw errors
+  cat <<-'EOF'
+    This repo contains a script that install almost
+    everything i need in a fresh install of some linux
+    distros (Debian based and Ubuntu).
 
-  Next you'll be asked to enter your sudo password (multiple times).
-  Please take a look to this script before using it, you may want
-  to remove some installs...!
+    Next you'll be asked to enter your sudo password (multiple times).
+    Please take a look to this script before using it, you may want
+    to remove some installs...!
+  EOF
 
-EOF
   trap 'echo -e "\n\nAborting..."; exit 0; ' INT
   printf "Hit ENTER to continue or CTRL+C to abort : "
   read -r
@@ -140,6 +281,8 @@ function now_installing() {
 }
 
 function snap_install() {
+  # Since the snap command won't work within a docker image! Aborting!!!
+  if [[ "${IS_IN_DOCKER_CONTAINER}" == 1 ]]; then return; fi
   local SNAP_INSTALL=("$@")
   now_installing "${SNAP_INSTALL[@]}"
   for utility in "${SNAP_INSTALL[@]}"; do
@@ -154,7 +297,11 @@ function minimal_libs_install() {
 }
 
 function minimal_utilities_install() {
-  local UTILITIES=(git wget openssh-server rsync htop tree xz-utils unzip unrar tmux)
+  # Some Minimal package required in others install
+  local UTILITIES=(sudo apt-transport-https software-properties-common ca-certificates
+    gpg gnupg gnupg-agent lsb-release git wget curl openssh-server
+    rsync htop tree xz-utils unzip unrar tmux)
+
   now_installing "${UTILITIES[@]}"
 
   # Requirement for git : latest stable version
@@ -168,31 +315,52 @@ function minimal_utilities_install() {
 }
 
 function install_docker() {
-  # Remove old installations
-  now_installing "Docker"
-  sudo apt-get --yes remove docker docker-engine docker.io containerd runc &> /dev/null
+  local GPG_KEY_URL=""
+  local APT_REPO_URL=""
+  local LSB_DIST=""
+  LSB_DIST="$(get_distribution)"
 
-  # Update the apt package index and install packages to allow apt to use a repository over HTTPS:
+  case "${LSB_DIST}" in
+  ubuntu)
+    GPG_KEY_URL="https://download.docker.com/linux/ubuntu/gpg"
+    APT_REPO_URL="https://download.docker.com/linux/ubuntu $(lsb_release -cs)"
+    ;;
+  debian | kali)
+    GPG_KEY_URL="https://download.docker.com/linux/debian/gpg"
+    APT_REPO_URL="https://download.docker.com/linux/debian buster"
+    ;;
+  *) if [[ "${VERBOSE}" == 1 ]]; then
+    cat <<-'EOF'
+      "${LSB_DIST} is an unsuported distribution.
+      Please take a look to the docker's official documentation for more details"
+    EOF
+  fi ;;
+  esac
+
+  now_installing "Docker"
+
+  # Remove old installations
+  sudo apt-get --yes remove docker docker-engine docker.io containerd runc &>/dev/null
   sudo apt-get update
-  sudo apt-get --yes install apt-transport-https ca-certificates \
-    curl gnupg-agent software-properties-common
 
   # Add Docker’s official GPG key:
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-
-  # Install the stable version
-  sudo add-apt-repository --yes \
-    "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
-    $(lsb_release -cs) stable"
-
+  curl -fsSL "${GPG_KEY_URL}" | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  # Set up stable apt repository
+  echo \
+    "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
+     ${APT_REPO_URL} stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
   # Install docker engine
   sudo apt-get update
   sudo apt-get install --yes docker-ce docker-ce-cli containerd.io
+  (
+    sudo groupadd docker
+    sudo usermod -aG docker "${USER}"
+  )
 }
 
 function graphics_install() {
   local GRAPHICS=(kazam peek inkscape imagemagick shotwell gthumb gwenview
-        vokoscreen-ng kolourpaint4)
+    vokoscreen-ng kolourpaint4)
   now_installing "${GRAPHICS[@]}"
   sudo apt-get install --yes "${GRAPHICS[@]}"
 }
@@ -243,6 +411,7 @@ function gui_editors_install() {
   sudo apt-get update
   sudo apt-get install --yes sublime-text typora
 
+  if [[ "${IS_IN_DOCKER_CONTAINER}" == 1 ]]; then return; fi
   # -----------JETBRAINS IDES
   local jetbrains_ide=(clion pycharm-professional datagrip intellij-idea-ultimate)
   for __ide in "${jetbrains_ide[@]}"; do
@@ -251,17 +420,10 @@ function gui_editors_install() {
   done
 }
 
-function some_gui_wget_install() {
-  local YED_SCRIPT='yEd-3.20.1_with-JRE14_64-bit_setup.sh'
+function anaconda3_install() {
   local ANACONDA_SCRIPT='Anaconda3-2020.11-Linux-x86_64.sh'
   local CONDA_SCRIPT=''
   local CONDA_URL=''
-  local XDM_XZ='xdm-setup-7.2.11.tar.xz'
-
-  now_installing "Yed-3.20.1"
-  rm -f "${YED_SCRIPT}"
-  wget "https://www.yworks.com/resources/yed/demo/${YED_SCRIPT}"
-  (bash ./${YED_SCRIPT}) &
 
   if [[ "${MINIMAL_INSTALL}" == 1 ]]; then
     CONDA_SCRIPT="${Miniconda3-latest-Linux-x86_64.sh}"
@@ -274,13 +436,26 @@ function some_gui_wget_install() {
   now_installing "${CONDA_SCRIPT}"
   rm -f "${CONDA_SCRIPT}"
   wget "${CONDA_URL}"
+
   (
-    bash ./Miniconda3-latest-Linux-x86_64.sh -buf
-    "${HOME}/miniconda3/bin/conda" update --all -y
-    "${HOME}/miniconda3/bin/conda" init bash
+    bash ./"${CONDA_SCRIPT}" -buf
+    if [[ "${MINIMAL_INSTALL}" == 1 ]]; then
+      "${HOME}/miniconda3/bin/conda" update --all -y
+      "${HOME}/miniconda3/bin/conda" init bash
+    fi
     # shellcheck source=/dev/null
     source "${HOME}/.bashrc"
   ) &
+}
+
+function some_gui_wget_install() {
+  local YED_SCRIPT='yEd-3.20.1_with-JRE14_64-bit_setup.sh'
+  local XDM_XZ='xdm-setup-7.2.11.tar.xz'
+
+  now_installing "Yed-3.20.1"
+  rm -f "${YED_SCRIPT}"
+  wget "https://www.yworks.com/resources/yed/demo/${YED_SCRIPT}"
+  (bash ./${YED_SCRIPT}) &
 
   now_installing "xdm downloader"
   rm -f "${XDM_XZ}"
@@ -304,16 +479,15 @@ function install_browser() {
   # Profiles downloaded from the server
 
   now_installing "Brave-browser Chromium browser"
-  sudo apt-get install --yes apt-transport-https curl gnupg
+  sudo curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg \
+    https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
 
-  curl -s https://brave-browser-apt-release.s3.brave.com/brave-core.asc \
-    | sudo apt-key --keyring /etc/apt/trusted.gpg.d/brave-browser-release.gpg add -
-
-  echo "deb [arch=amd64] https://brave-browser-apt-release.s3.brave.com/ stable main" \
-    | sudo tee /etc/apt/sources.list.d/brave-browser-release.list
+  echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg arch=amd64] \
+    https://brave-browser-apt-release.s3.brave.com/ stable main" | sudo tee \
+    /etc/apt/sources.list.d/brave-browser-release.list
 
   sudo apt-get update
-  sudo apt-get install --yes brave-browser chromium-browser
+  sudo apt-get install --yes brave-browser
 }
 
 function apply_dot_files() {
@@ -324,96 +498,56 @@ function apply_dot_files() {
 }
 
 function main() {
-  sudo apt update && sudo apt --yes full-upgrade
+  if [[ "${#EXCLUDE_UNEXPECTED_ARGS}" != 0 ]]; then exclude_unexpected_args; fi
+  if [[ "${EXCLUDE_NO_ARGS}" == 1 ]]; then exclude_no_args_provided '--no-args'; fi
+  cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
+
+  check_privileges
+  if [[ "${FORCE}" == 0 ]]; then helper; fi
+
+  # Before running stuff make sure 'sudo' is installed when running inside a docker
+  if [[ "${IS_IN_DOCKER_CONTAINER}" == 1 ]]; then
+    apt-get update
+    apt-get install sudo
+  else
+    sudo apt-get update
+  fi
+  # Update the system before installing anything
+  sudo apt-get --yes full-upgrade
 
   local DOWNLOAD_DIR='/tmp/fast-config-download'
-  mkdir -p "${DOWNLOAD_DIR}"
+  mkdir -p "${DOWNLOAD_DIR}"bash ./"${CONDA_SCRIPT}" -buf
+  if [[ "${MINIMAL_INSTALL}" == 1 ]]; then
+    "${HOME}/miniconda3/bin/conda" update --all -y
+    "${HOME}/miniconda3/bin/conda" init bash
+  fi
+  # shellcheck source=/dev/null
+  source "${HOME}/.bashrc"
 
   cd "${DOWNLOAD_DIR}" || true
   minimal_libs_install
   minimal_utilities_install
-  install_docker
+  if [[ "${EXCLUDE_CONDA}" == 0 ]]; then anaconda3_install; fi
+  if [[ "${EXCLUDE_DOCKER}" == 0 ]]; then install_docker; fi
 
-  if [[ "${MINIMAL_INSTALL}" == 0 ]]; then
+  if [[ "${MINIMAL_INSTALL}" == 0 || "${IS_IN_DOCKER_CONTAINER}" == 0 ]]; then
     gui_libs_install
     gui_utilities_install
     gui_editors_install
     some_gui_wget_install
 
-    if [[ "${EXCLUDE_BROWSERS}" == 0 ]]; then
-      install_browser
-    fi
-    if [[ "${EXCLUDE_GRAPHICS}" == 0 ]]; then
-      graphics_install
-    fi
+    if [[ "${EXCLUDE_BROWSERS}" == 0 ]]; then install_browser; fi
+    if [[ "${EXCLUDE_GRAPHICS}" == 0 ]]; then graphics_install; fi
   fi
-
-  if [[ "${EXCLUDE_DOT_FILES}" == 0 ]]; then
-    apply_dot_files
-  fi
-
   # Removing unneeded packages
   sudo apt autoclean --yes
   sudo apt --yes autoremove
+  if [[ "${EXCLUDE_DOT_FILES}" == 0 ]]; then apply_dot_files; fi
+
 }
-
-
-IS_IN_DOCKER_CONTAINER=0
-MINIMAL_INSTALL=0
-VERBOSE=1
-EXCLUDE_BROWSERS=0
-EXCLUDE_GRAPHICS=0
-EXCLUDE_UNEXPECTED_ARGS=()
-EXCLUDE_NO_ARGS=0
-FORCE=0
-
-BOLD='\033[1m'
-RESET='\033[0m'
-
-USAGE_ARGS="[-f|--force] | [-d|--docker] | [-m|--minimal] | [-q|--quiet] | [[-e|--exclude] EXCLUDES ] "
-USAGE_EXCLUDES="[br|browsers] [gr|graphics] [df|dot-files]"
 
 process_auto_check
 
-# Get user arguments
-while [ "${1}" ]; do
-  case "${1}" in
-    '-d' | '--docker')
-      IS_IN_DOCKER_CONTAINER=1
-      MINIMAL_INSTALL=1
-      ;;
-    '-f' | '--force') FORCE=1 ;;
-    '-m' | '--minimal') MINIMAL_INSTALL=1 ;;
-    '-q' | '--quiet') VERBOSE=0 ;;
-    '-e' | '--exclude')
-      shift
-      while [ "${1}" ]; do
-        case "${1}" in
-          'br' | 'browsers') EXCLUDE_BROWSERS=1 ;;
-          'gr' | 'graphics') EXCLUDE_GRAPHICS=1 ;;
-          'df' | 'dot-files') EXCLUDE_DOT_FILES=1 ;;
-          -*)
-            if [[ "${#EXCLUDE_UNEXPECTED_ARGS}" != 0 ]]; then EXCLUDE_NO_ARGS=1; fi
-            break
-            ;;
-          *) EXCLUDE_UNEXPECTED_ARGS+=("${1}") ;;
-        esac
-        shift
-      done
-      ;;
-    *)
-      printf "$(basename "${0}") : Unknown arg «%s»\n\n" "${1}"
-      printf "USAGE: %s %s\n" "${0}" "${USAGE_ARGS}"
-      printf "Where EXCLUDES are : %s\n" "${USAGE_EXCLUDES}"
-      exit 1
-      ;;
-  esac
-  shift
-done
+get_script_arguments "${@}"
 
-if [[ "${#EXCLUDE_UNEXPECTED_ARGS}" != 0 ]]; then exclude_unexpected_args; fi
-if [[ "${EXCLUDE_NO_ARGS}" == 1 ]]; then exclude_no_args; fi
-cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
-check_privileges
-if [[ "${FORCE}" == 0 ]]; then helper; fi
 main
