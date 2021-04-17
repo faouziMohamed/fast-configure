@@ -59,39 +59,39 @@ function get_script_arguments() {
       ;;
     -h | --help)
       cat <<-EOF
-      Fast Configure
-      USAGE: 
-        ${SCRIPT_NAME} [OPTIONS] 
-        ${SCRIPT_NAME} [-e|--exclude ARGUMENTS] 
-      Install some handy software that need to be installed in a fresh install of 
-      some linux distros (Debian based and Ubuntu).
-      
-      OPTIONS:
-        -m --minimal    Install only minimal non graphical packages and library 
-                        that depends on and some useful utilities
-        -d  --docker    Since in a docker container the user is root by default,
-                        this remove warnings related to root user. When specified 
-                        this behave like the --minimal flag
-        -f  --force     Select default (recommended) answer when a interraction 
-                        from the user is required
-        -q  --quiet     Suppress Unnesessary output
-        -e  --exclude   Tell the script to exclude some package. When the exclude 
-                        flag is provided, it require at last one of these arguments
-          br | browsers         Do not install browsers
-          cd | conda | anaconda Exclude installation of the conda environnement 
-                                either Miniconda or Anaconda
-          dc | docker           exlude installation of docker
-          df | dot-files        Do not apply custom dot-files
-          gr | graphics         Do not install graphics software (GIMP, Yed,...)
-        -h --help       Display this help and exit
-      EOF
+            Fast Configure
+            USAGE: 
+              ${SCRIPT_NAME} [OPTIONS] 
+              ${SCRIPT_NAME} [-e|--exclude ARGUMENTS] 
+            Install some handy software that need to be installed in a fresh install of 
+            some linux distros (Debian based and Ubuntu).
+            
+            OPTIONS:
+              -m --minimal    Install only minimal non graphical packages and library 
+                              that depends on and some useful utilities
+              -d  --docker    Since in a docker container the user is root by default,
+                              this remove warnings related to root user. When specified 
+                              this behave like the --minimal flag
+              -f  --force     Select default (recommended) answer when a interraction 
+                              from the user is required
+              -q  --quiet     Suppress Unnesessary output
+              -e  --exclude   Tell the script to exclude some package. When the exclude 
+                              flag is provided, it require at last one of these arguments
+                br | browsers         Do not install browsers
+                cd | conda | anaconda Exclude installation of the conda environnement 
+                                      either Miniconda or Anaconda
+                dc | docker           exlude installation of docker
+                df | dot-files        Do not apply custom dot-files
+                gr | graphics         Do not install graphics software (GIMP, Yed,...)
+              -h --help       Display this help and exit
+            EOF
       exit 0
       ;;
     *)
       cat <<-EOF
-       ${SCRIPT_NAME}: invalid option -- '${1}'
-       Try '${SCRIPT_NAME} --help' for more information.
-      EOF
+             ${SCRIPT_NAME}: invalid option -- '${1}'
+             Try '${SCRIPT_NAME} --help' for more information.
+            EOF
       exit 1
       ;;
     esac
@@ -212,10 +212,10 @@ function exclude_error_handler() {
     if ask_yes_no "Continue without the exclude flag ?"; then
       cat <<-'EOF'
 
-      Skipping exclude!
-      -----------------
+            Skipping exclude!
+            -----------------
 
-      EOF
+            EOF
       EXCLUDE_NO_ARGS=0
       return 0
     else
@@ -252,14 +252,14 @@ function helper() {
   # The indents in the next content are TABS not spaces,
   # though, do not replace them with spaces, it will throw errors
   cat <<-'EOF'
-    This repo contains a script that install almost
-    everything i need in a fresh install of some linux
-    distros (Debian based and Ubuntu).
+      This repo contains a script that install almost
+      everything i need in a fresh install of some linux
+      distros (Debian based and Ubuntu).
 
-    Next you'll be asked to enter your sudo password (multiple times).
-    Please take a look to this script before using it, you may want
-    to remove some installs...!
-  EOF
+      Next you'll be asked to enter your sudo password (multiple times).
+      Please take a look to this script before using it, you may want
+      to remove some installs...!
+    EOF
 
   trap 'echo -e "\n\nAborting..."; exit 0; ' INT
   printf "Hit ENTER to continue or CTRL+C to abort : "
@@ -331,9 +331,9 @@ function install_docker() {
     ;;
   *) if [[ "${VERBOSE}" == 1 ]]; then
     cat <<-'EOF'
-      "${LSB_DIST} is an unsuported distribution.
+        "${LSB_DIST} is an unsuported distribution.
       Please take a look to the docker's official documentation for more details"
-    EOF
+        EOF
   fi ;;
   esac
 
