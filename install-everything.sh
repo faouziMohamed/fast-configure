@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Dot not translate tabs to spaces, doing so will break causes
-# the script to not work. The some 'cat' commands who depends on tabs
-# Faouzi Mohamed
+# Dot not translate tabs to spaces, doing so will causes
+# the script to not work. The 'cat' command depends on tabs
 
 IS_IN_DOCKER_CONTAINER=0
 MINIMAL_INSTALL=0
